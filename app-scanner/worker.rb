@@ -19,7 +19,7 @@ severe_issues = report.fetch("issues").select do |i|
 end
 
 if severe_issues != 0
-  issue_names = severe_issues.collect("name").join(", ")
+  issue_names = severe_issues.collect {|i| i["name"]}.join(", ")
   body = "Your app has the following severe issues: #{issue_names}.
 
 Attached is a report detailing these vulnerabilities and how they can be resolved.
@@ -31,4 +31,5 @@ The App Protector Team"
   puts `./notify.rb "#{name}" "#{body}"`
 end
 
-# delete dead files
+`rm #{name}.json`
+`rm #{name}.zip`

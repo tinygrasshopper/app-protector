@@ -9,7 +9,8 @@ class Web < Sinatra::Base
   get "/trump" do
     quotes = [
       "my fingers are long and beautiful",
-      "it will be a great, great wall"
+      "it will be a great, great wall",
+      "i have the best words"
     ]
     quotes.sample
   end
@@ -18,10 +19,11 @@ class Web < Sinatra::Base
     request.body.rewind
     request_payload = JSON.parse(request.body.read)
 
-    # `./worker.sh #{request_payload['site']} &`
+    halt unless request_payload['name']
+    halt unless request_payload['site']
 
     pid = Process.fork {
-      system("./worker.sh #{request_payload['site']}")
+      puts system("./worker.rb #{request_payload['name']} #{request_payload['site']}")
     }
 
     "Started scanning #{request_payload['site']} with PID #{pid}"

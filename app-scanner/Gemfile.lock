@@ -113,5 +113,8 @@ DEPENDENCIES
   mailgun-ruby (~> 1.1.2)
   sinatra
 
+RUBY VERSION
+   ruby 2.3.0p0
+
 BUNDLED WITH
    1.13.6

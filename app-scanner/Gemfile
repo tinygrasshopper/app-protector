@@ -1,5 +1,7 @@
 source "https://rubygems.org"
 
+ruby '2.3.0'
+
 gem "arachni"
 gem 'mailgun-ruby', '~>1.1.2'
 gem "sinatra"

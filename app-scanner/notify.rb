@@ -8,7 +8,7 @@ require 'mailgun'
 app_name = ARGV[0]
 body = ARGV[1]
 
-to_email = 'hstanley@pivotal.io'
+to_email = ENV['TO_EMAIL_ADDRESS']
 
 mailgun = Mailgun::Client.new(ENV['MAILGUN_API_KEY'])
 
