@@ -1,0 +1,10 @@
+<h1>So Vulnerable</h1>
+<% if name %>
+hello <%= name %>
+<% end %>
+
+<h4>Tell me your name</h4>
+<form method="POST" action="/">
+  <input type="text" name="name" />
+  <input type="submit" />
+<form>
