@@ -4,7 +4,7 @@ require 'open-uri'
 require 'httparty'
 
 class Config
-  attr_reader :api_url, :username, :password, :org_name, :space_name, :space_guid
+  attr_reader :api_url, :username, :password, :org_name, :space_name, :space_guid, :scanner_url
 
   def initialize
     @api_url = ENV.fetch('API_URL')
@@ -13,6 +13,7 @@ class Config
     @org_name = "system"
     @space_name = "system"
     @space_guid = ENV.fetch('SPACE_GUID')
+    @scanner_url = URI::encode(ENV.fetch('SCANNER_URL'))
   end
 end
 
@@ -34,26 +35,61 @@ class CFClient
     new_app_create_events = app_create_events_since(time: time, space_guid: space_guid)
 
     new_app_create_events.map do |event|
-      url = app_url(event.actee)
       App.new(
+        guid: event.actee,
         name: event.actee_name,
-        url: url
+        url: app_url(event.actee)
       )
-    end
+    end.uniq { |app| app.guid }
+  end
+
+  def apps_updated_since(time:, space_guid:)
+    new_app_update_events = app_update_events_since(time: time, space_guid: space_guid)
+
+    new_app_update_events.map do |event|
+      App.new(
+        guid: event.actee,
+        name: event.actee_name,
+        url: app_url(event.actee)
+      )
+    end.uniq { |app| app.guid }
   end
 
   def app_create_events_since(time:, space_guid:)
-    timestamp = time.strftime('%FT%TZ')
-    path = "/v2/events?q=type:audit.app.create&q=timestamp>#{timestamp}"
-    events = curl_resources(path)
-    filtered_events = events.select { |event| event.fetch('entity').fetch('space_guid') == space_guid }
-    filtered_events.map do |event|
-      puts event
-      AppEvent.new(actee: event.fetch("entity").fetch("actee"), actee_name: event.fetch("entity").fetch("actee_name"))
-    end
+    app_events_since(type: 'create', time: time, space_guid: space_guid)
+    # timestamp = time.strftime('%FT%TZ')
+    # path = "/v2/events?q=type:audit.app.create&q=timestamp>#{timestamp}"
+    # events = curl_resources(path)
+    # filtered_events = events.select { |event| event.fetch('entity').fetch('space_guid') == space_guid }
+    # filtered_events.map do |event|
+    #   AppEvent.new(actee: event.fetch("entity").fetch("actee"), actee_name: event.fetch("entity").fetch("actee_name"))
+    # end
+  end
+
+  def app_update_events_since(time:, space_guid:)
+    app_events_since(type: 'update', time: time, space_guid: space_guid)
+    # timestamp = time.strftime('%FT%TZ')
+    # path = "/v2/events?q=type:audit.app.update&q=timestamp>#{timestamp}"
+    # events = curl_resources(path)
+    # space_events = events.select { |event| event.fetch('entity').fetch('space_guid') == space_guid }
+    # app_push_events = space_events.select { |event| event.fetch('entity').fetch('metadata').fetch('request').has_key?('name') }
+    # app_push_events.map do |event|
+    #   AppEvent.new(actee: event.fetch("entity").fetch("actee"), actee_name: event.fetch("entity").fetch("actee_name"))
+    # end
   end
 
   private
+
+  def app_events_since(type:, time:, space_guid:)
+    timestamp = time.strftime('%FT%TZ')
+    path = "/v2/events?q=type:audit.app.#{type}&q=timestamp>#{timestamp}"
+    events = curl_resources(path)
+    space_events = events.select { |event| event.fetch('entity').fetch('space_guid') == space_guid }
+    app_push_events = space_events.select { |event| event.fetch('entity').fetch('metadata').fetch('request').has_key?('name') }
+    app_push_events.map do |event|
+      AppEvent.new(actee: event.fetch("entity").fetch("actee"), actee_name: event.fetch("entity").fetch("actee_name"))
+    end
+  end
 
   def app_url(app_guid)
     routes_results = curl_resources("/v2/apps/#{app_guid}/routes")
@@ -83,10 +119,10 @@ class CFClient
 end
 
 class App
-  attr_reader :name, :url
+  attr_reader :guid, :name, :url
 
-  def initialize(name:, url:)
-    @name, @url = name, url
+  def initialize(guid:, name:, url:)
+    @guid, @name, @url = guid, name, url
   end
 end
 
@@ -96,21 +132,23 @@ class AppEvent
   def initialize(actee:, actee_name:)
     @actee, @actee_name = actee, actee_name
   end
+end
 
-  def app
-    App.new(guid: actee_name)
-  end
+def log(time, message)
+  puts "[#{time.to_s}] #{message}"
 end
 
 def trigger_pen_test_with app, config
   body = {
     site: app.url,
-    app_name: app.name,
+    name: app.name,
     org_name: config.org_name,
     space_name: config.space_name
-  }
-  # HTTParty.post(ENV.fetch('PEN_TEST_URL'), body: body)
+  }.to_json
+  puts "POST #{config.scanner_url}"
   puts body
+  response = HTTParty.post(config.scanner_url, body: body)
+  puts response.code
 end
 
 config = Config.new
@@ -118,11 +156,21 @@ cf_client = CFClient.new(api_url: config.api_url, username: config.username, pas
 cf_client.login
 cf_client.target_space(org: config.org_name, space: config.space_name)
 
-last_poll_at = Time.now.utc - 1000
-# loop do
-  apps = cf_client.apps_created_since(time: last_poll_at, space_guid: config.space_guid)
-  apps.each do |app|
+puts "Monitoring CF target"
+puts "Org: #{config.org_name}"
+puts "Space: #{config.space_name}"
+last_poll_at = Time.now.utc - 300
+loop do
+  next_poll_from = Time.now.utc
+  log(next_poll_from, "Monitoring... ")
+  apps_created = cf_client.apps_created_since(time: last_poll_at, space_guid: config.space_guid)
+  log(next_poll_from, "New apps created: [#{apps_created.map(&:name).join(', ')}]")
+  apps_updated = cf_client.apps_updated_since(time: last_poll_at, space_guid: config.space_guid)
+  log(next_poll_from, "Apps updated: [#{apps_updated.map(&:name).join(', ')}]")
+  apps_to_test = (apps_created + apps_updated).uniq { |app| app.guid }
+  apps_to_test.each do |app|
     trigger_pen_test_with(app, config)
   end
-  # sleep 5
-# end
+  sleep 15
+  last_poll_at = next_poll_from
+end
