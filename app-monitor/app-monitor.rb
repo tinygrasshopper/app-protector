@@ -32,53 +32,32 @@ class CFClient
   end
 
   def apps_created_since(time:, space_guid:)
-    new_app_create_events = app_create_events_since(time: time, space_guid: space_guid)
-
-    new_app_create_events.map do |event|
-      App.new(
-        guid: event.actee,
-        name: event.actee_name,
-        url: app_url(event.actee)
-      )
-    end.uniq { |app| app.guid }
+    map_events_to_apps(app_create_events_since(time: time, space_guid: space_guid))
   end
 
   def apps_updated_since(time:, space_guid:)
-    new_app_update_events = app_update_events_since(time: time, space_guid: space_guid)
-
-    new_app_update_events.map do |event|
-      App.new(
-        guid: event.actee,
-        name: event.actee_name,
-        url: app_url(event.actee)
-      )
-    end.uniq { |app| app.guid }
+    map_events_to_apps(app_update_events_since(time: time, space_guid: space_guid))
   end
 
   def app_create_events_since(time:, space_guid:)
     app_events_since(type: 'create', time: time, space_guid: space_guid)
-    # timestamp = time.strftime('%FT%TZ')
-    # path = "/v2/events?q=type:audit.app.create&q=timestamp>#{timestamp}"
-    # events = curl_resources(path)
-    # filtered_events = events.select { |event| event.fetch('entity').fetch('space_guid') == space_guid }
-    # filtered_events.map do |event|
-    #   AppEvent.new(actee: event.fetch("entity").fetch("actee"), actee_name: event.fetch("entity").fetch("actee_name"))
-    # end
   end
 
   def app_update_events_since(time:, space_guid:)
     app_events_since(type: 'update', time: time, space_guid: space_guid)
-    # timestamp = time.strftime('%FT%TZ')
-    # path = "/v2/events?q=type:audit.app.update&q=timestamp>#{timestamp}"
-    # events = curl_resources(path)
-    # space_events = events.select { |event| event.fetch('entity').fetch('space_guid') == space_guid }
-    # app_push_events = space_events.select { |event| event.fetch('entity').fetch('metadata').fetch('request').has_key?('name') }
-    # app_push_events.map do |event|
-    #   AppEvent.new(actee: event.fetch("entity").fetch("actee"), actee_name: event.fetch("entity").fetch("actee_name"))
-    # end
   end
 
   private
+
+  def map_events_to_apps(app_events)
+    app_events.map do |event|
+      App.new(
+        guid: event.actee,
+        name: event.actee_name,
+        url: app_url(event.actee)
+      )
+    end.uniq { |app| app.guid }
+  end
 
   def app_events_since(type:, time:, space_guid:)
     timestamp = time.strftime('%FT%TZ')
@@ -145,10 +124,7 @@ def trigger_pen_test_with app, config
     org_name: config.org_name,
     space_name: config.space_name
   }.to_json
-  puts "POST #{config.scanner_url}"
-  puts body
   response = HTTParty.post(config.scanner_url, body: body)
-  puts response.code
 end
 
 config = Config.new
