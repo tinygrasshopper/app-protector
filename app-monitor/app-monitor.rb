@@ -10,8 +10,8 @@ class Config
     @api_url = ENV.fetch('API_URL')
     @username = ENV.fetch('USERNAME')
     @password = ENV.fetch('PASSWORD')
-    @org_name = "system"
-    @space_name = "system"
+    @org_name = ENV.fetch('ORG_NAME')
+    @space_name = ENV.fetch('SPACE_NAME')
     @space_guid = ENV.fetch('SPACE_GUID')
     @scanner_url = URI::encode(ENV.fetch('SCANNER_URL'))
   end
