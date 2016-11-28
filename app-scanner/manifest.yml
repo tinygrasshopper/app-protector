@@ -1,3 +1,5 @@
 ---
 name: app-scanner
 buildpack: ruby_buildpack
+env:
+  MAILGUN_API_KEY: key-e2d82f654b3f7e763d54eb9d6a127c89
