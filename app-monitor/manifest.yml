@@ -1,0 +1,13 @@
+---
+name: app-monitor
+command: bundle exec ruby ./app-monitor.rb
+health-check-type: none
+buildpack: ruby_buildpack
+memory: 100M
+disk: 200M
+env:
+  API_URL:
+  USERNAME:
+  PASSWORD:
+  SPACE_GUID:
+  SCANNER_URL:
